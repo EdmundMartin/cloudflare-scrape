@@ -9,12 +9,12 @@ with open(os.path.join(base_path, 'cfscrape', '__init__.py')) as fp:
                          re.S).match(fp.read()).group(1)
 
 setup(
-  name = 'cfscrape',
+  name = 'cloudscrape'
   packages = ['cfscrape'],
   version = VERSION,
-  description = 'A simple Python module to bypass Cloudflare\'s anti-bot page. See https://github.com/Anorov/cloudflare-scrape for more information.',
+  description = 'A fork of cfscrape Cloudflare\'s anti-bot page.',
   author = 'Anorov',
-  author_email = 'anorov.vorona@gmail.com',
+  author_email = 'edmartin101@gmail.com',
   url = 'https://github.com/Anorov/cloudflare-scrape',
   keywords = ['cloudflare', 'scraping'],
   include_package_data = True,
