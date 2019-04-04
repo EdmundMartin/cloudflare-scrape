@@ -26,16 +26,6 @@ Simply run `pip install cloudscrape`. The PyPI package is at https://pypi.python
 
 Alternatively, clone this repository and run `python setup.py install`.
 
-Dependencies
-============
-
-* Python 2.6 - 3.x
-* **[Requests](https://github.com/kennethreitz/requests)** >= 2.0
-* **[Node.js](https://nodejs.org/)**
-    * Your computer or server may already have it (check with `node -v`). If not, you can install it with `apt-get install nodejs` on Ubuntu. Debian requires `nodejs-legacy`. Otherwise, please read [Node's installation instructions](https://nodejs.org/en/download/package-manager/).
-
-`python setup.py install` will install the Python dependencies automatically. Node is the only application you need to install yourself.
-
 Updates
 =======
 
@@ -45,11 +35,11 @@ If you notice that the anti-bot page has changed, or if this module suddenly sto
 
 * Many issues are a result of users not updating to the latest release of this project. Before filing an issue, please run the following command:
 ```
-pip show cfscrape
+pip show cloudscrape
 ```
 If the value of the version field is not the latest release, please run the following to update your package:
 ```
-pip install cfscrape -U
+pip install cloudscrape -U
 ```
 If you are still encountering a problem, open an issue and please include:
 
