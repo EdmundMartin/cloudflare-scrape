@@ -111,7 +111,6 @@ class CloudflareScraper(Session):
 
         # Solve the Javascript challenge
         params["jschl_answer"] = self.solve_challenge(body, domain)
-        print(params)
         # Requests transforms any request into a GET after a redirect,
         # so the redirect has to be handled manually here to allow for
         # performing other types of requests even as the first request.
