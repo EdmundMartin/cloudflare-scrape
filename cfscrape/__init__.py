@@ -7,7 +7,6 @@ import base64
 from copy import deepcopy
 from time import sleep
 from collections import OrderedDict
-from cfscrape.jsfuck import jsunfuck
 
 import js2py
 from requests.sessions import Session
@@ -15,25 +14,32 @@ from requests.sessions import Session
 from urllib.parse import urlparse
 from urllib.parse import urlunparse
 
+from cfscrape.jsfuck import jsunfuck
+from cfscrape.exceptions import CfParseException, CfCaptchaException
+
 
 DEFAULT_USER_AGENTS = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/65.0.3325.181 Chrome/65.0.3325.181 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 7.0; Moto G (5) Build/NPPS25.137-93-8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.137 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 7_0_4 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11B554a Safari/9537.53",
-    "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:59.0) Gecko/20100101 Firefox/59.0",
-    "Mozilla/5.0 (Windows NT 6.3; Win64; x64; rv:57.0) Gecko/20100101 Firefox/57.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.3 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36 Edge/17.17134",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.75 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36",
 ]
 
-DEFAULT_USER_AGENT = random.choice(DEFAULT_USER_AGENTS)
 
 BUG_REPORT = """\
 Cloudflare may have changed their technique, or there may be a bug in the script.
+Raise an issue here: https://github.com/EdmundMartin/cloudflare-scrape
 """
 
 
 class CloudflareScraper(Session):
+
     def __init__(self, *args, **kwargs):
         self.delay = kwargs.pop('delay', 8)
         super(CloudflareScraper, self).__init__(*args, **kwargs)
@@ -43,19 +49,19 @@ class CloudflareScraper(Session):
 
         if "requests" in self.headers['User-Agent']:
             # Set a random User-Agent if no custom User-Agent has been set
-            self.headers["User-Agent"] = DEFAULT_USER_AGENT
+            self.headers["User-Agent"] = random.choice(DEFAULT_USER_AGENTS)
 
     def set_cloudflare_challenge_delay(self, delay):
         if isinstance(delay, (int, float)) and delay > 0:
             self.delay = delay
 
     def is_cloudflare_challenge(self, resp):
-        return (
-            resp.status_code in [429, 503]
-            and resp.headers.get('Server', '').startswith('cloudflare')
-            and b"jschl_vc" in resp.content
-            and b"jschl_answer" in resp.content
-        )
+        if resp.status_code in [429, 503]:
+            if b'data-translate="why_captcha_headline' in resp.content:
+                raise CfCaptchaException('Page requires solving a Google ReCaptcha to proceed')
+            else:
+                return resp.headers.get('Server', '').startswith('cloudflare') and b"jschl_vc" in resp.content and b"jschl_answer" in resp.content
+        return False
 
     def request(self, method, url, *args, **kwargs):
         self.headers['Accept-Encoding'] = 'gzip, deflate'
@@ -103,17 +109,9 @@ class CloudflareScraper(Session):
             )
 
         except Exception as e:
-            # Something is wrong with the page.
-            # This may indicate Cloudflare has changed their anti-bot
-            # technique. If you see this and are running the latest version,
-            # please open a GitHub issue so I can update the code accordingly.
-            raise ValueError("Unable to parse Cloudflare anti-bots page: {} {}".format(e.message, BUG_REPORT))
+            raise CfParseException("Unable to parse Cloudflare anti-bots page: {} {}".format(e, BUG_REPORT))
 
-        # Solve the Javascript challenge
         params["jschl_answer"] = self.solve_challenge(body, domain)
-        # Requests transforms any request into a GET after a redirect,
-        # so the redirect has to be handled manually here to allow for
-        # performing other types of requests even as the first request.
         method = resp.request.method
 
         cloudflare_kwargs["allow_redirects"] = False
@@ -122,6 +120,7 @@ class CloudflareScraper(Session):
         if 'Location' not in redirect.headers and self._tries < self._max_tries:
             self._tries += 1
             return self.request(self._method, resp.url)
+        self._tries = 0
         redirect_location = urlparse(redirect.headers["Location"])
 
         if not redirect_location.netloc:
@@ -146,7 +145,7 @@ class CloudflareScraper(Session):
                 body
             ).group(1)
         except Exception:
-            raise ValueError("Unable to identify Cloudflare IUAM Javascript on website. {}".format(BUG_REPORT))
+            raise CfParseException("Unable to identify Cloudflare IUAM Javascript on website. {}".format(BUG_REPORT))
 
         js = re.sub(r"a\.value = ((.+).toFixed\(10\))?", r"\1", js)
         js = re.sub(r"\s{3,}[a-z](?: = |\.).+", "", js).replace("t.length", str(len(domain)))
@@ -158,7 +157,7 @@ class CloudflareScraper(Session):
         js = re.sub(r"[\n\\']", "", js)
 
         if "toFixed" not in js:
-            raise ValueError("Error parsing Cloudflare IUAM Javascript challenge. {}".format(BUG_REPORT))
+            raise CfParseException("Error parsing Cloudflare IUAM Javascript challenge. {}".format(BUG_REPORT))
 
         try:
             jsEnv = """
@@ -189,7 +188,7 @@ class CloudflareScraper(Session):
             result = context.eval(js)
         except Exception:
             logging.error("Error executing Cloudflare IUAM Javascript. {}".format(BUG_REPORT))
-            raise
+            raise 
 
         try:
             float(result)
@@ -225,11 +224,9 @@ class CloudflareScraper(Session):
             resp = scraper.get(url, **kwargs)
             resp.raise_for_status()
         except Exception as e:
-            logging.error("'{}' returned an error. Could not collect tokens.".format(url))
-            raise
+            raise CfParseException("Could not get tokens for given URL: {}, {}".format(url, e))
 
         domain = urlparse(resp.url).netloc
-        cookie_domain = None
 
         for d in scraper.cookies.list_domains():
             if d.startswith(".") and d in ("." + domain):
