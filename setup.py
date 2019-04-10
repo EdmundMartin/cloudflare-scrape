@@ -7,7 +7,7 @@ base_path = os.path.dirname(__file__)
 setup(
   name='cloudscrape',
   packages=['cfscrape'],
-  version=0.3,
+  version=0.4,
   description='A fork of cfscrape Cloudflare\'s anti-bot page.',
   author='Edmund',
   author_email='edmartin101@gmail.com',
