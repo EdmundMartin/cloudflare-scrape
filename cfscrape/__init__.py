@@ -148,6 +148,7 @@ class CloudflareScraper(Session):
             raise CfParseException("Unable to identify Cloudflare IUAM Javascript on website. {}".format(BUG_REPORT))
 
         js = re.sub(r"a\.value = ((.+).toFixed\(10\))?", r"\1", js)
+        js = re.sub(r'(e\s=\sfunction\(s\)\s{.*?};)', '', js, flags=re.DOTALL | re.MULTILINE)
         js = re.sub(r"\s{3,}[a-z](?: = |\.).+", "", js).replace("t.length", str(len(domain)))
 
         js = js.replace('; 121', '')
@@ -163,6 +164,19 @@ class CloudflareScraper(Session):
             jsEnv = """
             var t = "{domain}";
             var g = String.fromCharCode;
+            
+            o = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+            e = function(s) {{
+                s += "==".slice(2 - (s.length & 3));
+                var bm, r = "", r1, r2, i = 0;
+                for (; i < s.length;) {{
+                    bm = o.indexOf(s.charAt(i++)) << 18 | o.indexOf(s.charAt(i++)) << 12 | (r1 = o.indexOf(s.charAt(i++))) << 6 | (r2 = o.indexOf(s.charAt(i++)));
+                    r += r1 === 64 ? g(bm >> 16 & 255) : r2 === 64 ? g(bm >> 16 & 255, bm >> 8 & 255) : g(bm >> 16 & 255, bm >> 8 & 255, bm & 255);
+                }}
+                return r;
+            }};
+
+            
             function italics (str) {{ return '<i>' + this + '</i>'; }};
             var document = {{
                 getElementById: function () {{
