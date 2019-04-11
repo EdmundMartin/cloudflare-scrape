@@ -197,7 +197,8 @@ class CloudflareScraper(Session):
 
             def atob(s):
                 return base64.b64decode('{}'.format(s)).decode('utf-8')
-
+            
+            js2py.disable_pyimport()
             context = js2py.EvalJs({"atob": atob})
             result = context.eval(js)
         except Exception:
