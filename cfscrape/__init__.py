@@ -120,6 +120,8 @@ class CloudflareScraper(Session):
         if 'Location' not in redirect.headers and self._tries < self._max_tries:
             self._tries += 1
             return self.request(self._method, resp.url)
+        elif 'Location' not in redirect.headers:
+            raise CfParseException("Unable to pass security after five attempts")
         self._tries = 0
         redirect_location = urlparse(redirect.headers["Location"])
 
